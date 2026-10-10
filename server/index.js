@@ -4,8 +4,9 @@ import http from 'http';
 import { Server } from 'socket.io';
 import * as db from './db.js';
 import { analyze } from './ai.js';
-import { debugPage } from './debugPage.js';
 import { hash, check, sign, verify } from './auth.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const app = express();
 app.use(cors());
@@ -127,15 +128,12 @@ app.post('/api/emergencies/:id/ai/refresh', auth('dispatcher'), (req, res) => {
   res.json({ ok: true });
 });
 
-// Browser view of the database. Only works from the machine the server runs on. Remove before deploying.
-app.get('/api/debug/db', (req, res) => {
-  if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return res.status(403).send('Only available on the server machine');
-  res.type('html').send(debugPage(db.dump()));
-});
-
+const dist = path.join(path.dirname(fileURLToPath(import.meta.url)), '../client/dist');
+app.use(express.static(dist));
+app.use((req, res, next) => (req.method === 'GET' ? res.sendFile(path.join(dist, 'index.html')) : next()));
 app.use((err, _req, res, _next) => {
   if (!(err instanceof db.HttpError)) console.error(err);
   res.status(err.status || 500).json({ error: err.status ? err.message : 'Server error' });
 });
 
-server.listen(4000, () => console.log('LifeLine API on http://localhost:4000'));
+server.listen(process.env.PORT || 4000, () => console.log('LifeLine API on http://localhost:4000'));
